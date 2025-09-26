@@ -218,7 +218,7 @@ export class RematchAPI {
         }
     }
 
-    async searchUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayerWithHistory | null> {
+    async resolveUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayerWithHistory | null> {
         try {
             console.log(`🔍 Searching for "${username}" on ${platform} using scrap API...`);
 
@@ -289,10 +289,16 @@ export class RematchAPI {
             return directSteamResult;
         }
 
-        // Step 4: Try remaining Steam results
-        console.log(`🔍 Trying remaining Steam results...`);
+        // Step 4: Try direct Steam ID (steamcommunity.com/profiles/usernumber)
+        console.log(`🎮 Trying direct Steam ID: ${username}`)
+        const directSteamUsernumberResult = await this.searchUserBySteamId(`${username}`)
+        if (directSteamUsernumberResult) {
+            console.log(`✅ Found player via direct Steam Usernumber`)
+            return directSteamUsernumberResult
+        }
 
-        // First, try remaining results from page 1
+        // Step 5: Try remaining Steam results
+        console.log(`🔍 Trying remaining Steam results...`);
         for (let i = 1; i < steamIdentifiers.length; i++) {
             console.log(`🎮 Trying Steam result ${i + 1}: ${steamIdentifiers[i]}`);
             const steamResult = await this.searchUserBySteamId(steamIdentifiers[i]);
@@ -300,30 +306,6 @@ export class RematchAPI {
                 console.log(`✅ Found player on Steam (result ${i + 1})`);
                 return steamResult;
             }
-        }
-
-        // Then, try additional pages
-        let currentPage = 2;
-        while (currentPage <= 20) {
-            const pageIdentifiers = await this.searchSteamUsersByAlias(username, currentPage);
-
-            // If no results on this page, we've reached the end
-            if (pageIdentifiers.length === 0) {
-                console.log(`🛑 No Steam results found on page ${currentPage}, stopping search`);
-                break;
-            }
-
-            // Try all identifiers from this page
-            for (let i = 0; i < pageIdentifiers.length; i++) {
-                console.log(`🎮 Trying Steam result from page ${currentPage}: ${pageIdentifiers[i]}`);
-                const steamResult = await this.searchUserBySteamId(pageIdentifiers[i]);
-                if (steamResult) {
-                    console.log(`✅ Found player on Steam (page ${currentPage})`);
-                    return steamResult;
-                }
-            }
-
-            currentPage++;
         }
 
         console.log(`❌ No Steam results found for "${username}"`);
@@ -341,7 +323,7 @@ export class RematchAPI {
                 const fullSteamUrl = `steamcommunity.com/id/${customUrl}`;
                 console.log(`🔍 Searching for custom Steam URL "${fullSteamUrl}" using scrap API...`);
 
-                return this.searchUserByPlatform(fullSteamUrl, 'steam');
+                return this.resolveUserByPlatform(fullSteamUrl, 'steam');
             } else {
                 // Direct Steam ID
                 platformId = identifier;
@@ -389,7 +371,7 @@ export class RematchAPI {
 
         // Step 3: Try PlayStation API
         console.log(`🎮 Trying PlayStation API...`);
-        const playstationResult = await this.searchUserByPlatform(username, 'playstation');
+        const playstationResult = await this.resolveUserByPlatform(username, 'playstation');
         if (playstationResult) {
             console.log(`✅ Found player via PlayStation API`);
             return playstationResult;
@@ -397,7 +379,7 @@ export class RematchAPI {
 
         // Step 4: Try Xbox API
         console.log(`🎮 Trying Xbox API...`);
-        const xboxResult = await this.searchUserByPlatform(username, 'xbox');
+        const xboxResult = await this.resolveUserByPlatform(username, 'xbox');
         if (xboxResult) {
             console.log(`✅ Found player via Xbox API`);
             return xboxResult;
@@ -432,6 +414,19 @@ export class RematchAPI {
 
         console.log(`❌ No results found for "${username}" across all platforms`);
         return null;
+    }
+
+    async searchUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayerWithHistory | null> {
+      try {
+        if (platform === 'steam') {
+          return this.searchUserSteamOnly(username);
+        } else {
+          return this.resolveUserByPlatform(username, platform);
+        }
+      } catch (error) {
+        console.error('Error in searchUserByPlatform:', error);
+        return null;
+      }
     }
 
     async searchUser(username: string): Promise<RematchPlayer | null> {
