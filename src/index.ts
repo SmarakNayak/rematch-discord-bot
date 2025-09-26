@@ -219,11 +219,6 @@ export class RematchAPI {
     }
 
     async searchUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayerWithHistory | null> {
-        if (platform === 'steam') {
-            // For Steam, use the full Steam search strategy
-            return this.searchUserSteamOnly(username);
-        }
-
         try {
             console.log(`🔍 Searching for "${username}" on ${platform} using scrap API...`);
 
@@ -346,15 +341,7 @@ export class RematchAPI {
                 const fullSteamUrl = `steamcommunity.com/id/${customUrl}`;
                 console.log(`🔍 Searching for custom Steam URL "${fullSteamUrl}" using scrap API...`);
 
-                // Try resolving custom URL directly using the scrap API
-                const profileResponse = await this.getProfile('steam', fullSteamUrl);
-                if (profileResponse.data.success) {
-                    const player = this.convertToRematchPlayer(profileResponse.data);
-                    const matchHistory = profileResponse.data.match_history?.items || [];
-                    return { player, matchHistory };
-                }
-
-                return null;
+                return this.searchUserByPlatform(fullSteamUrl, 'steam');
             } else {
                 // Direct Steam ID
                 platformId = identifier;
@@ -418,16 +405,22 @@ export class RematchAPI {
 
         // Step 5: Try direct Steam ID (steamcommunity.com/id/username)
         console.log(`🎮 Trying direct Steam ID: ${username}`);
-        const directSteamResult = await this.searchUserBySteamId(`custom:${username}`);
-        if (directSteamResult) {
-            console.log(`✅ Found player via direct Steam ID`);
-            return directSteamResult;
+        const directSteamUsernameResult = await this.searchUserBySteamId(`custom:${username}`);
+        if (directSteamUsernameResult) {
+            console.log(`✅ Found player via direct Steam Username`);
+            return directSteamUsernameResult;
         }
 
-        // Step 6: Try remaining Steam results
-        console.log(`🔍 Trying remaining Steam results...`);
+        // Step 6: Try direct Steam ID (steamcommunity.com/profiles/usernumber)
+        console.log(`🎮 Trying direct Steam ID: ${username}`);
+        const directSteamUsernumberResult = await this.searchUserBySteamId(`${username}`);
+        if (directSteamUsernumberResult) {
+            console.log(`✅ Found player via direct Steam Usernumber`);
+            return directSteamUsernumberResult;
+        }
 
-        // First, try remaining results from page 1
+        // Step 7: Try remaining Steam results
+        console.log(`🔍 Trying remaining Steam results...`);
         for (let i = 1; i < steamIdentifiers.length; i++) {
             console.log(`🎮 Trying Steam result ${i + 1}: ${steamIdentifiers[i]}`);
             const steamResult = await this.searchUserBySteamId(steamIdentifiers[i]);
@@ -437,35 +430,7 @@ export class RematchAPI {
             }
         }
 
-        // Then, try additional pages
-        let currentPage = 2;
-        while (currentPage <= 20) {
-            const pageIdentifiers = await this.searchSteamUsersByAlias(username, currentPage);
-
-            // If no results on this page, we've reached the end
-            if (pageIdentifiers.length === 0) {
-                console.log(`🛑 No Steam results found on page ${currentPage}, stopping search`);
-                break;
-            }
-
-            // Try all identifiers from this page
-            for (let i = 0; i < pageIdentifiers.length; i++) {
-                console.log(`🎮 Trying Steam result from page ${currentPage}: ${pageIdentifiers[i]}`);
-                const steamResult = await this.searchUserBySteamId(pageIdentifiers[i]);
-                if (steamResult) {
-                    console.log(`✅ Found player on Steam (page ${currentPage})`);
-                    return steamResult;
-                }
-            }
-
-            currentPage++;
-        }
-
-        if (currentPage > 20) {
-            console.log(`❌ Steam search limit reached (20 pages) for "${username}"`);
-        } else {
-            console.log(`❌ No results found for "${username}" across all platforms`);
-        }
+        console.log(`❌ No results found for "${username}" across all platforms`);
         return null;
     }
 
