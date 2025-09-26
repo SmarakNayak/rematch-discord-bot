@@ -154,63 +154,80 @@ export class RematchAPI {
 
             console.log(`✅ Using sessionid: ${sessionId}`);
 
+            const allIdentifiers = [];
+            const seen = new Set();
+            const maxPages = 5;
+
             // Search for users using the AJAX endpoint (matching steam_search.sh headers)
-            const searchResponse = await axios.get('https://steamcommunity.com/search/SearchCommunityAjax', {
-                params: {
-                    text: alias,
-                    filter: 'users',
-                    sessionid: sessionId,
-                    steamid_user: 'false',
-                    page: 1
-                },
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-                    'Accept': 'application/json, text/javascript, */*; q=0.01',
-                    'Accept-Language': 'en-GB,en;q=0.9',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive',
-                    'Pragma': 'no-cache',
-                    'Sec-Ch-Ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
-                    'Sec-Ch-Ua-Mobile': '?0',
-                    'Sec-Ch-Ua-Platform': '"Windows"',
-                    'Sec-Fetch-Dest': 'empty',
-                    'Sec-Fetch-Mode': 'cors',
-                    'Sec-Fetch-Site': 'same-origin',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Origin': 'https://steamcommunity.com',
-                    'Cookie': `sessionid=${sessionId}`
-                }
-            });
+            for (let page = 1; page <= maxPages; page++) {
+                console.log(`🔍 Searching Steam page ${page} for "${alias}"...`);
 
-            if (searchResponse.data && searchResponse.data.html) {
-                // Parse HTML to extract Steam identifiers preserving order
-                const html = searchResponse.data.html;
-                const identifierRegex = /https:\/\/steamcommunity\.com\/(profiles\/(\d{17})|id\/([a-zA-Z0-9_-]+))/g;
-                const identifiers = [];
-                const seen = new Set();
-                let match;
+                const searchResponse = await axios.get('https://steamcommunity.com/search/SearchCommunityAjax', {
+                    params: {
+                        text: alias,
+                        filter: 'users',
+                        sessionid: sessionId,
+                        steamid_user: 'false',
+                        page: page
+                    },
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+                        'Accept': 'application/json, text/javascript, */*; q=0.01',
+                        'Accept-Language': 'en-GB,en;q=0.9',
+                        'Cache-Control': 'no-cache',
+                        'Connection': 'keep-alive',
+                        'Pragma': 'no-cache',
+                        'Sec-Ch-Ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+                        'Sec-Ch-Ua-Mobile': '?0',
+                        'Sec-Ch-Ua-Platform': '"Windows"',
+                        'Sec-Fetch-Dest': 'empty',
+                        'Sec-Fetch-Mode': 'cors',
+                        'Sec-Fetch-Site': 'same-origin',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Origin': 'https://steamcommunity.com',
+                        'Cookie': `sessionid=${sessionId}`
+                    }
+                });
 
-                while ((match = identifierRegex.exec(html)) !== null) {
-                    let identifier;
-                    if (match[2]) {
-                        // Direct Steam ID from /profiles/
-                        identifier = match[2];
-                    } else if (match[3]) {
-                        // Custom URL from /id/ - use the custom name as identifier for now
-                        identifier = `custom:${match[3]}`;
+                if (searchResponse.data && searchResponse.data.html) {
+                    // Parse HTML to extract Steam identifiers preserving order
+                    const html = searchResponse.data.html;
+                    const identifierRegex = /https:\/\/steamcommunity\.com\/(profiles\/(\d{17})|id\/([a-zA-Z0-9_-]+))/g;
+                    const pageIdentifiers = [];
+                    let match;
+
+                    while ((match = identifierRegex.exec(html)) !== null) {
+                        let identifier;
+                        if (match[2]) {
+                            // Direct Steam ID from /profiles/
+                            identifier = match[2];
+                        } else if (match[3]) {
+                            // Custom URL from /id/ - use the custom name as identifier for now
+                            identifier = `custom:${match[3]}`;
+                        }
+
+                        if (identifier && !seen.has(identifier)) {
+                            seen.add(identifier);
+                            pageIdentifiers.push(identifier);
+                            allIdentifiers.push(identifier);
+                        }
                     }
 
-                    if (identifier && !seen.has(identifier)) {
-                        seen.add(identifier);
-                        identifiers.push(identifier);
-                    }
-                }
+                    console.log(`✅ Found ${pageIdentifiers.length} new identifiers on page ${page}`);
 
-                console.log(`✅ Found ${identifiers.length} unique Steam identifiers for "${alias}"`);
-                return identifiers.slice(0, 10); // Return up to 10 results preserving order
+                    // If we got less than 20 results, there are no more pages
+                    if (pageIdentifiers.length < 20) {
+                        console.log(`🛑 Page ${page} returned ${pageIdentifiers.length} results (< 20), stopping search`);
+                        break;
+                    }
+                } else {
+                    console.log(`❌ No data returned for page ${page}`);
+                    break;
+                }
             }
 
-            return [];
+            console.log(`✅ Found ${allIdentifiers.length} total unique Steam identifiers for "${alias}" across ${Math.min(maxPages, allIdentifiers.length >= 20 ? maxPages : 1)} pages`);
+            return allIdentifiers;
         } catch (error) {
             console.error('Error searching Steam users:', error);
             return [];
