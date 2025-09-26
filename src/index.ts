@@ -346,8 +346,15 @@ export class RematchAPI {
                 const fullSteamUrl = `steamcommunity.com/id/${customUrl}`;
                 console.log(`🔍 Searching for custom Steam URL "${fullSteamUrl}" using scrap API...`);
 
-                // Try resolving custom URL using full Steam URL through the scrap API
-                return await this.searchUserByPlatform(fullSteamUrl, 'steam');
+                // Try resolving custom URL directly using the scrap API
+                const profileResponse = await this.getProfile('steam', fullSteamUrl);
+                if (profileResponse.data.success) {
+                    const player = this.convertToRematchPlayer(profileResponse.data);
+                    const matchHistory = profileResponse.data.match_history?.items || [];
+                    return { player, matchHistory };
+                }
+
+                return null;
             } else {
                 // Direct Steam ID
                 platformId = identifier;
