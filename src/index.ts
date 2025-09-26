@@ -17,6 +17,9 @@ interface RematchPlayer {
     rank?: string;
     division?: string;
     fullRank?: string;
+    rank3v3?: string;
+    division3v3?: string;
+    fullRank3v3?: string;
     currentTeam?: {
         id: string;
         name: string;
@@ -375,14 +378,24 @@ export class RematchAPI {
     private convertToRematchPlayer(data: any): RematchPlayer {
         const player = data.player;
         const rank = data.rank;
+        const rank3v3 = data.rank3v3;
         const stats = data.lifetime_stats.All || {};
 
-        // Convert league/division to readable rank
+        // Convert 5v5 league/division to readable rank
         const rankName = this.getLeagueRankName(rank.current_league, rank.current_division);
-
-        // Convert division: div_0 => div_0, div_1 => div_1, div_2 => div_2, div_3 => null (don't show Division 4)
         const division = rank.current_division <= 2 ? `div_${rank.current_division}` : null;
         const fullRankText = division ? `${rankName.toLowerCase()} ${division}` : rankName.toLowerCase();
+
+        // Convert 3v3 league/division to readable rank
+        let rankName3v3 = null;
+        let division3v3 = null;
+        let fullRankText3v3 = null;
+
+        if (rank3v3 && rank3v3.current_league !== undefined) {
+            rankName3v3 = this.getLeagueRankName(rank3v3.current_league, rank3v3.current_division);
+            division3v3 = rank3v3.current_division <= 2 ? `div_${rank3v3.current_division}` : null;
+            fullRankText3v3 = division3v3 ? `${rankName3v3.toLowerCase()} ${division3v3}` : rankName3v3.toLowerCase();
+        }
 
         return {
             id: player.platform_id,
@@ -396,6 +409,9 @@ export class RematchAPI {
             rank: rankName.toLowerCase(),
             division: division,
             fullRank: fullRankText,
+            rank3v3: rankName3v3?.toLowerCase() || null,
+            division3v3: division3v3,
+            fullRank3v3: fullRankText3v3,
             currentTeam: undefined, // Not provided in this API
             stats: {
                 goals: stats.goals || 0,
@@ -417,7 +433,8 @@ export class RematchAPI {
             case 2: return 'Gold';
             case 3: return 'Platinum';
             case 4: return 'Diamond';
-            case 5: return 'Elite';
+            case 5: return 'Master';
+            case 6: return 'Elite';
             default: return league === -1 ? 'Unranked' : 'Unknown';
         }
     }
@@ -505,6 +522,7 @@ export class RematchAPI {
             case 'gold': return '🥇';
             case 'platinum': case 'platinium': return '💠';
             case 'diamond': return '💎';
+            case 'master': return '🏆';
             case 'elite': return '👑';
             default: return '❓';
         }
@@ -516,19 +534,44 @@ export class RematchAPI {
         const emoji = this.getRankEmoji(player.rank);
         const rank = player.rank.charAt(0).toUpperCase() + player.rank.slice(1);
 
-        // Don't show divisions for unranked players
-        if (player.rank.toLowerCase() === 'unranked') {
+        // Don't show divisions for unranked players or Elite rank
+        if (player.rank.toLowerCase() === 'unranked' || player.rank.toLowerCase() === 'elite') {
             return `${emoji} ${rank}`;
         }
 
-        // Convert div_0 => Division 3, div_1 => Division 2, div_2 => Division 1
+        // Convert div_0 => Div 3, div_1 => Div 2, div_2 => Div 1
         // Division 4 (div_3) should not be displayed
         let division = '';
         if (player.division && player.division.startsWith('div_')) {
             const divNum = parseInt(player.division.split('_')[1]);
             if (divNum <= 2) { // Only show divisions 1-3 (div_0, div_1, div_2)
                 const displayDiv = 3 - divNum; // Convert: 0->3, 1->2, 2->1
-                division = ` Division ${displayDiv}`;
+                division = ` Div ${displayDiv}`;
+            }
+        }
+
+        return `${emoji} ${rank}${division}`;
+    }
+
+    formatRank3v3(player: RematchPlayer): string {
+        if (!player.rank3v3) return 'Unranked';
+
+        const emoji = this.getRankEmoji(player.rank3v3);
+        const rank = player.rank3v3.charAt(0).toUpperCase() + player.rank3v3.slice(1);
+
+        // Don't show divisions for unranked players or Elite rank
+        if (player.rank3v3.toLowerCase() === 'unranked' || player.rank3v3.toLowerCase() === 'elite') {
+            return `${emoji} ${rank}`;
+        }
+
+        // Convert div_0 => Div 3, div_1 => Div 2, div_2 => Div 1
+        // Division 4 (div_3) should not be displayed
+        let division = '';
+        if (player.division3v3 && player.division3v3.startsWith('div_')) {
+            const divNum = parseInt(player.division3v3.split('_')[1]);
+            if (divNum <= 2) { // Only show divisions 1-3 (div_0, div_1, div_2)
+                const displayDiv = 3 - divNum; // Convert: 0->3, 1->2, 2->1
+                division = ` Div ${displayDiv}`;
             }
         }
 
@@ -735,10 +778,20 @@ client.on('interactionCreate', async interaction => {
 
             // Basic info
             embed.addFields({
-                name: '🏆 Rank',
+                name: '🏆 Rank (5v5)',
                 value: rematchAPI.formatRank(playerData),
                 inline: true
+                
             });
+
+            // Add 3v3 rank if available
+            if (playerData.rank3v3) {
+                embed.addFields({
+                    name: '⚽ Rank (3v3)',
+                    value: rematchAPI.formatRank3v3(playerData),
+                    inline: true
+                });
+            }
 
             if (playerData.position) {
                 embed.addFields({

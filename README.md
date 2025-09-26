@@ -87,6 +87,7 @@ The bot displays ranks with emojis:
 - 🥇 Gold
 - 💠 Platinum
 - 💎 Diamond
+- 🏆 Master
 - 👑 Elite
 
 ## API
