@@ -13,12 +13,12 @@ interface RematchPlayer {
     position?: string;
     jerseyNumber?: number;
     country?: string;
-    platform?: string;
+    platform: string;
     rank?: string;
-    division?: string;
+    division?: string | null;
     fullRank?: string;
     rank3v3?: string;
-    division3v3?: string;
+    division3v3?: string | null;
     fullRank3v3?: string;
     currentTeam?: {
         id: string;
@@ -386,16 +386,10 @@ export class RematchAPI {
         const division = rank.current_division <= 2 ? `div_${rank.current_division}` : null;
         const fullRankText = division ? `${rankName.toLowerCase()} ${division}` : rankName.toLowerCase();
 
-        // Convert 3v3 league/division to readable rank
-        let rankName3v3 = null;
-        let division3v3 = null;
-        let fullRankText3v3 = null;
 
-        if (rank3v3 && rank3v3.current_league !== undefined) {
-            rankName3v3 = this.getLeagueRankName(rank3v3.current_league, rank3v3.current_division);
-            division3v3 = rank3v3.current_division <= 2 ? `div_${rank3v3.current_division}` : null;
-            fullRankText3v3 = division3v3 ? `${rankName3v3.toLowerCase()} ${division3v3}` : rankName3v3.toLowerCase();
-        }
+        const rankName3v3 = this.getLeagueRankName(rank3v3.current_league, rank3v3.current_division);
+        const division3v3 = rank3v3.current_division <= 2 ? `div_${rank3v3.current_division}` : null;
+        const fullRankText3v3 = division3v3 ? `${rankName3v3.toLowerCase()} ${division3v3}` : rankName3v3.toLowerCase();
 
         return {
             id: player.platform_id,
@@ -409,7 +403,7 @@ export class RematchAPI {
             rank: rankName.toLowerCase(),
             division: division,
             fullRank: fullRankText,
-            rank3v3: rankName3v3?.toLowerCase() || null,
+            rank3v3: rankName3v3?.toLowerCase(),
             division3v3: division3v3,
             fullRank3v3: fullRankText3v3,
             currentTeam: undefined, // Not provided in this API
