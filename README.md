@@ -4,11 +4,12 @@ A Discord bot that shows the ranks of players from your last Rematch game using 
 
 ## Features
 
-- 🎮 **`/lastgame <username>`** - Shows ranks of all players from your most recent match
-- 👤 **`/rank <username>`** - Check a specific player's rank, stats, and team info
-- 🏆 Displays ranks with emojis (Bronze 🥉, Silver 🥈, Gold 🥇, etc.)
+- 🎮 **`/lastgame <username> [platform]`** - Shows ranks of all players from your most recent match
+- 👤 **`/rank <username> [platform]`** - Check a specific player's rank, stats, and team info
+- 🌐 **Multi-platform support** - Search across Steam, PlayStation, and Xbox
+- 🏆 Displays ranks with emojis (Bronze 🥉, Silver 🥈, Gold 🥇, Platinum 💠, Diamond 💎, Elite 👑)
 - 📊 Shows player statistics and team information
-- ⚡ Fast responses using RematchTracker.com API
+- ⚡ Fast responses with optimized search order
 
 ## Setup
 
@@ -42,19 +43,41 @@ A Discord bot that shows the ranks of players from your last Rematch game using 
 
 ## Commands
 
-### `/lastgame <username>`
+### `/lastgame <username> [platform]`
 Shows the ranks of all players from the specified user's most recent match.
 
-**Example:** `/lastgame baethal`
+**Examples:**
+- `/lastgame username:baethal` - Search across all platforms
+- `/lastgame username:baethal platform:steam` - Search only on Steam
+- `/lastgame username:baethal platform:playstation` - Search only on PlayStation
+- `/lastgame username:baethal platform:xbox` - Search only on Xbox
 
 **Output:** Displays both teams with player ranks, match score, and tournament info.
 
-### `/rank <username>`
+### `/rank <username> [platform]`
 Shows detailed information about a specific player.
 
-**Example:** `/rank baethal`
+**Examples:**
+- `/rank username:baethal` - Search across all platforms
+- `/rank username:baethal platform:steam` - Search only on Steam
+- `/rank username:baethal platform:playstation` - Search only on PlayStation
+- `/rank username:baethal platform:xbox` - Search only on Xbox
 
 **Output:** Shows rank, position, team, stats, and more.
+
+## Platform Search
+
+The bot supports multi-platform search with optimized performance:
+
+**Multi-platform search (default):**
+- Searches Steam Community first for exact matches
+- Falls back to PlayStation, then Xbox
+- Tries additional Steam results if needed
+
+**Platform-specific search:**
+- Faster, targeted search on a specific platform
+- Useful when you know exactly where to find the player
+- Provides clearer error messages if player not found on that platform
 
 ## Rank System
 
@@ -62,10 +85,9 @@ The bot displays ranks with emojis:
 - 🥉 Bronze
 - 🥈 Silver
 - 🥇 Gold
-- 💎 Platinum
-- 💠 Diamond
-- 🏆 Master
-- 👑 Grandmaster
+- 💠 Platinum
+- 💎 Diamond
+- 👑 Elite
 
 ## API
 

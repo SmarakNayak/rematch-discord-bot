@@ -417,8 +417,7 @@ export class RematchAPI {
             case 2: return 'Gold';
             case 3: return 'Platinum';
             case 4: return 'Diamond';
-            case 5: return 'Master';
-            case 6: return 'Grandmaster';
+            case 5: return 'Elite';
             default: return league === -1 ? 'Unranked' : 'Unknown';
         }
     }
@@ -504,11 +503,9 @@ export class RematchAPI {
             case 'bronze': return '🥉';
             case 'silver': return '🥈';
             case 'gold': return '🥇';
-            case 'platinum': case 'platinium': return '💎';
-            case 'diamond': return '💠';
-            case 'master': return '🏆';
-            case 'elite': return '🏆';
-            case 'grandmaster': return '👑';
+            case 'platinum': case 'platinium': return '💠';
+            case 'diamond': return '💎';
+            case 'elite': return '👑';
             default: return '❓';
         }
     }
