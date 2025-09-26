@@ -4,7 +4,7 @@ A Discord bot that shows the ranks of players from your last Rematch game using 
 
 ## Features
 
-- 🎮 **`/lastgame <username> [platform]`** - Shows ranks of all players from your most recent match
+- 🎮 **`/lastgame <username> [platform]`** - Shows stats from your most recent match
 - 👤 **`/rank <username> [platform]`** - Check a specific player's rank, stats, and team info
 - 🌐 **Multi-platform support** - Search across Steam, PlayStation, and Xbox
 - 🏆 Displays ranks with emojis (Bronze 🥉, Silver 🥈, Gold 🥇, Platinum 💠, Diamond 💎, Elite 👑)
