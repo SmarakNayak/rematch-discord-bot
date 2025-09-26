@@ -44,6 +44,7 @@ interface RematchPlayerWithHistory {
     matchHistory: any[];
 }
 
+
 interface RematchMatch {
     id: string;
     teamFormat: string;
@@ -110,9 +111,9 @@ export class RematchAPI {
         return profileResponse;
     }
 
-    async searchSteamUsersByAlias(alias: string): Promise<string[]> {
+    async searchSteamUsersByAlias(alias: string, page: number = 1): Promise<string[]> {
         try {
-            console.log(`🔍 Searching Steam for alias "${alias}"...`);
+            console.log(`🔍 Searching Steam page ${page} for alias "${alias}"...`);
 
             // First, get cookies from Steam search page (matching steam_search.sh)
             const cookieResponse = await axios.get('https://steamcommunity.com/search/users/', {
@@ -154,80 +155,63 @@ export class RematchAPI {
 
             console.log(`✅ Using sessionid: ${sessionId}`);
 
-            const allIdentifiers = [];
-            const seen = new Set();
-            const maxPages = 5;
-
             // Search for users using the AJAX endpoint (matching steam_search.sh headers)
-            for (let page = 1; page <= maxPages; page++) {
-                console.log(`🔍 Searching Steam page ${page} for "${alias}"...`);
-
-                const searchResponse = await axios.get('https://steamcommunity.com/search/SearchCommunityAjax', {
-                    params: {
-                        text: alias,
-                        filter: 'users',
-                        sessionid: sessionId,
-                        steamid_user: 'false',
-                        page: page
-                    },
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-                        'Accept': 'application/json, text/javascript, */*; q=0.01',
-                        'Accept-Language': 'en-GB,en;q=0.9',
-                        'Cache-Control': 'no-cache',
-                        'Connection': 'keep-alive',
-                        'Pragma': 'no-cache',
-                        'Sec-Ch-Ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
-                        'Sec-Ch-Ua-Mobile': '?0',
-                        'Sec-Ch-Ua-Platform': '"Windows"',
-                        'Sec-Fetch-Dest': 'empty',
-                        'Sec-Fetch-Mode': 'cors',
-                        'Sec-Fetch-Site': 'same-origin',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Origin': 'https://steamcommunity.com',
-                        'Cookie': `sessionid=${sessionId}`
-                    }
-                });
-
-                if (searchResponse.data && searchResponse.data.html) {
-                    // Parse HTML to extract Steam identifiers preserving order
-                    const html = searchResponse.data.html;
-                    const identifierRegex = /https:\/\/steamcommunity\.com\/(profiles\/(\d{17})|id\/([a-zA-Z0-9_-]+))/g;
-                    const pageIdentifiers = [];
-                    let match;
-
-                    while ((match = identifierRegex.exec(html)) !== null) {
-                        let identifier;
-                        if (match[2]) {
-                            // Direct Steam ID from /profiles/
-                            identifier = match[2];
-                        } else if (match[3]) {
-                            // Custom URL from /id/ - use the custom name as identifier for now
-                            identifier = `custom:${match[3]}`;
-                        }
-
-                        if (identifier && !seen.has(identifier)) {
-                            seen.add(identifier);
-                            pageIdentifiers.push(identifier);
-                            allIdentifiers.push(identifier);
-                        }
-                    }
-
-                    console.log(`✅ Found ${pageIdentifiers.length} new identifiers on page ${page}`);
-
-                    // If we got less than 20 results, there are no more pages
-                    if (pageIdentifiers.length < 20) {
-                        console.log(`🛑 Page ${page} returned ${pageIdentifiers.length} results (< 20), stopping search`);
-                        break;
-                    }
-                } else {
-                    console.log(`❌ No data returned for page ${page}`);
-                    break;
+            const searchResponse = await axios.get('https://steamcommunity.com/search/SearchCommunityAjax', {
+                params: {
+                    text: alias,
+                    filter: 'users',
+                    sessionid: sessionId,
+                    steamid_user: 'false',
+                    page: page
+                },
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'Accept-Language': 'en-GB,en;q=0.9',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                    'Pragma': 'no-cache',
+                    'Sec-Ch-Ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+                    'Sec-Ch-Ua-Mobile': '?0',
+                    'Sec-Ch-Ua-Platform': '"Windows"',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'same-origin',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Origin': 'https://steamcommunity.com',
+                    'Cookie': `sessionid=${sessionId}`
                 }
+            });
+
+            if (searchResponse.data && searchResponse.data.html) {
+                // Parse HTML to extract Steam identifiers preserving order
+                const html = searchResponse.data.html;
+                const identifierRegex = /https:\/\/steamcommunity\.com\/(profiles\/(\d{17})|id\/([a-zA-Z0-9_-]+))/g;
+                const identifiers = [];
+                const seen = new Set();
+                let match;
+
+                while ((match = identifierRegex.exec(html)) !== null) {
+                    let identifier;
+                    if (match[2]) {
+                        // Direct Steam ID from /profiles/
+                        identifier = match[2];
+                    } else if (match[3]) {
+                        // Custom URL from /id/ - use the custom name as identifier for now
+                        identifier = `custom:${match[3]}`;
+                    }
+
+                    if (identifier && !seen.has(identifier)) {
+                        seen.add(identifier);
+                        identifiers.push(identifier);
+                    }
+                }
+
+                console.log(`✅ Found ${identifiers.length} identifiers on page ${page}`);
+                return identifiers;
             }
 
-            console.log(`✅ Found ${allIdentifiers.length} total unique Steam identifiers for "${alias}" across ${Math.min(maxPages, allIdentifiers.length >= 20 ? maxPages : 1)} pages`);
-            return allIdentifiers;
+            return [];
         } catch (error) {
             console.error('Error searching Steam users:', error);
             return [];
@@ -235,6 +219,11 @@ export class RematchAPI {
     }
 
     async searchUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayerWithHistory | null> {
+        if (platform === 'steam') {
+            // For Steam, use the full Steam search strategy
+            return this.searchUserSteamOnly(username);
+        }
+
         try {
             console.log(`🔍 Searching for "${username}" on ${platform} using scrap API...`);
 
@@ -279,6 +268,71 @@ export class RematchAPI {
             console.log(`⚠️  Platform search failed for "${username}" on ${platform}: ${error.response?.status || 'Unknown'} ${error.message}`);
             return null;
         }
+    }
+
+    async searchUserSteamOnly(username: string): Promise<RematchPlayerWithHistory | null> {
+        console.log(`🔍 Steam-only search for "${username}"`);
+
+        // Step 1: Get first Steam page from alias search
+        let steamIdentifiers = await this.searchSteamUsersByAlias(username, 1);
+
+        // Step 2: Try first Steam result from alias search
+        if (steamIdentifiers.length > 0) {
+            console.log(`🎮 Trying first Steam alias result: ${steamIdentifiers[0]}`);
+            const steamResult = await this.searchUserBySteamId(steamIdentifiers[0]);
+            if (steamResult) {
+                console.log(`✅ Found player on Steam (first alias result)`);
+                return steamResult;
+            }
+        }
+
+        // Step 3: Try direct Steam ID (steamcommunity.com/id/username)
+        console.log(`🎮 Trying direct Steam ID: ${username}`);
+        const directSteamResult = await this.searchUserBySteamId(`custom:${username}`);
+        if (directSteamResult) {
+            console.log(`✅ Found player via direct Steam ID`);
+            return directSteamResult;
+        }
+
+        // Step 4: Try remaining Steam results
+        console.log(`🔍 Trying remaining Steam results...`);
+
+        // First, try remaining results from page 1
+        for (let i = 1; i < steamIdentifiers.length; i++) {
+            console.log(`🎮 Trying Steam result ${i + 1}: ${steamIdentifiers[i]}`);
+            const steamResult = await this.searchUserBySteamId(steamIdentifiers[i]);
+            if (steamResult) {
+                console.log(`✅ Found player on Steam (result ${i + 1})`);
+                return steamResult;
+            }
+        }
+
+        // Then, try additional pages
+        let currentPage = 2;
+        while (currentPage <= 20) {
+            const pageIdentifiers = await this.searchSteamUsersByAlias(username, currentPage);
+
+            // If no results on this page, we've reached the end
+            if (pageIdentifiers.length === 0) {
+                console.log(`🛑 No Steam results found on page ${currentPage}, stopping search`);
+                break;
+            }
+
+            // Try all identifiers from this page
+            for (let i = 0; i < pageIdentifiers.length; i++) {
+                console.log(`🎮 Trying Steam result from page ${currentPage}: ${pageIdentifiers[i]}`);
+                const steamResult = await this.searchUserBySteamId(pageIdentifiers[i]);
+                if (steamResult) {
+                    console.log(`✅ Found player on Steam (page ${currentPage})`);
+                    return steamResult;
+                }
+            }
+
+            currentPage++;
+        }
+
+        console.log(`❌ No Steam results found for "${username}"`);
+        return null;
     }
 
     async searchUserBySteamId(identifier: string): Promise<RematchPlayerWithHistory | null> {
@@ -326,20 +380,20 @@ export class RematchAPI {
     async searchUserMultiPlatform(username: string): Promise<RematchPlayerWithHistory | null> {
         console.log(`🔍 Multi-platform search for "${username}"`);
 
-        // Step 1: Get Steam identifiers from alias search
-        const steamIdentifiers = await this.searchSteamUsersByAlias(username);
+        // Step 1: Get first Steam page from alias search
+        let steamIdentifiers = await this.searchSteamUsersByAlias(username, 1);
 
-        // Step 2: Try first Steam result (resolve + fetch profile immediately)
+        // Step 2: Try first Steam result from alias search
         if (steamIdentifiers.length > 0) {
-            console.log(`🎮 Trying first Steam result: ${steamIdentifiers[0]}`);
+            console.log(`🎮 Trying first Steam alias result: ${steamIdentifiers[0]}`);
             const steamResult = await this.searchUserBySteamId(steamIdentifiers[0]);
             if (steamResult) {
-                console.log(`✅ Found player on Steam (first result)`);
+                console.log(`✅ Found player on Steam (first alias result)`);
                 return steamResult;
             }
         }
 
-        // Step 3: Try PlayStation API (resolve + fetch profile immediately)
+        // Step 3: Try PlayStation API
         console.log(`🎮 Trying PlayStation API...`);
         const playstationResult = await this.searchUserByPlatform(username, 'playstation');
         if (playstationResult) {
@@ -347,7 +401,7 @@ export class RematchAPI {
             return playstationResult;
         }
 
-        // Step 4: Try Xbox API (resolve + fetch profile immediately)
+        // Step 4: Try Xbox API
         console.log(`🎮 Trying Xbox API...`);
         const xboxResult = await this.searchUserByPlatform(username, 'xbox');
         if (xboxResult) {
@@ -355,9 +409,19 @@ export class RematchAPI {
             return xboxResult;
         }
 
-        // Step 5: Try remaining Steam results (up to 20 total attempts)
-        const maxAttempts = Math.min(20, steamIdentifiers.length);
-        for (let i = 1; i < maxAttempts; i++) {
+        // Step 5: Try direct Steam ID (steamcommunity.com/id/username)
+        console.log(`🎮 Trying direct Steam ID: ${username}`);
+        const directSteamResult = await this.searchUserBySteamId(`custom:${username}`);
+        if (directSteamResult) {
+            console.log(`✅ Found player via direct Steam ID`);
+            return directSteamResult;
+        }
+
+        // Step 6: Try remaining Steam results
+        console.log(`🔍 Trying remaining Steam results...`);
+
+        // First, try remaining results from page 1
+        for (let i = 1; i < steamIdentifiers.length; i++) {
             console.log(`🎮 Trying Steam result ${i + 1}: ${steamIdentifiers[i]}`);
             const steamResult = await this.searchUserBySteamId(steamIdentifiers[i]);
             if (steamResult) {
@@ -366,7 +430,35 @@ export class RematchAPI {
             }
         }
 
-        console.log(`❌ No results found for "${username}" across all platforms`);
+        // Then, try additional pages
+        let currentPage = 2;
+        while (currentPage <= 20) {
+            const pageIdentifiers = await this.searchSteamUsersByAlias(username, currentPage);
+
+            // If no results on this page, we've reached the end
+            if (pageIdentifiers.length === 0) {
+                console.log(`🛑 No Steam results found on page ${currentPage}, stopping search`);
+                break;
+            }
+
+            // Try all identifiers from this page
+            for (let i = 0; i < pageIdentifiers.length; i++) {
+                console.log(`🎮 Trying Steam result from page ${currentPage}: ${pageIdentifiers[i]}`);
+                const steamResult = await this.searchUserBySteamId(pageIdentifiers[i]);
+                if (steamResult) {
+                    console.log(`✅ Found player on Steam (page ${currentPage})`);
+                    return steamResult;
+                }
+            }
+
+            currentPage++;
+        }
+
+        if (currentPage > 20) {
+            console.log(`❌ Steam search limit reached (20 pages) for "${username}"`);
+        } else {
+            console.log(`❌ No results found for "${username}" across all platforms`);
+        }
         return null;
     }
 
