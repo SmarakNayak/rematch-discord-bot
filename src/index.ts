@@ -39,6 +39,11 @@ interface RematchPlayer {
     };
 }
 
+interface RematchPlayerWithHistory {
+    player: RematchPlayer;
+    matchHistory: any[];
+}
+
 interface RematchMatch {
     id: string;
     teamFormat: string;
@@ -81,6 +86,29 @@ interface RematchMatch {
 
 export class RematchAPI {
     private baseURL = 'https://api.rematchtracker.com';
+
+    private mapPlatformForAPI(platform: string): string {
+        switch (platform) {
+            case 'playstation':
+                return 'psn';
+            case 'steam':
+            case 'xbox':
+            default:
+                return platform;
+        }
+    }
+
+    private async getProfile(platform: string, platformId: string): Promise<any> {
+        const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
+            platform: this.mapPlatformForAPI(platform),
+            platformId: platformId
+        }, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        return profileResponse;
+    }
 
     async searchSteamUsersByAlias(alias: string): Promise<string[]> {
         try {
@@ -189,7 +217,7 @@ export class RematchAPI {
         }
     }
 
-    async searchUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayer | null> {
+    async searchUserByPlatform(username: string, platform: 'steam' | 'playstation' | 'xbox'): Promise<RematchPlayerWithHistory | null> {
         try {
             console.log(`🔍 Searching for "${username}" on ${platform} using scrap API...`);
 
@@ -208,18 +236,13 @@ export class RematchAPI {
                 console.log(`✅ Resolved "${username}" to "${display_name}" (${platform_id}) on ${platform}`);
 
                 try {
-                    // Get full profile data
-                    const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
-                        platform: platform,
-                        platformId: platform_id
-                    }, {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    // Get full profile data including match history
+                    const profileResponse = await this.getProfile(platform, platform_id);
 
                     if (profileResponse.data.success) {
-                        return this.convertToRematchPlayer(profileResponse.data);
+                        const player = this.convertToRematchPlayer(profileResponse.data);
+                        const matchHistory = profileResponse.data.match_history?.items || [];
+                        return { player, matchHistory };
                     }
 
                     return null;
@@ -241,7 +264,7 @@ export class RematchAPI {
         }
     }
 
-    async searchUserBySteamId(identifier: string): Promise<RematchPlayer | null> {
+    async searchUserBySteamId(identifier: string): Promise<RematchPlayerWithHistory | null> {
         try {
             let platformId: string;
             let displayType: string;
@@ -261,17 +284,12 @@ export class RematchAPI {
                 console.log(`🔍 Searching for ${displayType} using scrap API...`);
 
                 // Get profile data directly by Steam ID
-                const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
-                    platform: 'steam',
-                    platformId: platformId
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+                const profileResponse = await this.getProfile('steam', platformId);
 
                 if (profileResponse.data.success) {
-                    return this.convertToRematchPlayer(profileResponse.data);
+                    const player = this.convertToRematchPlayer(profileResponse.data);
+                    const matchHistory = profileResponse.data.match_history?.items || [];
+                    return { player, matchHistory };
                 }
 
                 return null;
@@ -288,7 +306,7 @@ export class RematchAPI {
         }
     }
 
-    async searchUserMultiPlatform(username: string): Promise<RematchPlayer | null> {
+    async searchUserMultiPlatform(username: string): Promise<RematchPlayerWithHistory | null> {
         console.log(`🔍 Multi-platform search for "${username}"`);
 
         // Step 1: Get Steam identifiers from alias search
@@ -320,8 +338,8 @@ export class RematchAPI {
             return xboxResult;
         }
 
-        // Step 5: Try remaining Steam results (up to 5 total attempts)
-        const maxAttempts = Math.min(5, steamIdentifiers.length);
+        // Step 5: Try remaining Steam results (up to 20 total attempts)
+        const maxAttempts = Math.min(20, steamIdentifiers.length);
         for (let i = 1; i < maxAttempts; i++) {
             console.log(`🎮 Trying Steam result ${i + 1}: ${steamIdentifiers[i]}`);
             const steamResult = await this.searchUserBySteamId(steamIdentifiers[i]);
@@ -482,30 +500,6 @@ export class RematchAPI {
         }
     }
 
-    async getPlayerMatchHistoryByPlatformId(platform: string, platformId: string): Promise<any[] | null> {
-        try {
-            console.log(`🔍 Getting match history for ${platform} ID "${platformId}"...`);
-
-            // Get full profile data which includes match history
-            const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
-                platform: platform,
-                platformId: platformId
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (profileResponse.data.success && profileResponse.data.match_history) {
-                return profileResponse.data.match_history.items || [];
-            }
-
-            return null;
-        } catch (error) {
-            console.error('Error getting match history by platform ID:', error);
-            return null;
-        }
-    }
 
     getRankEmoji(rank: string | undefined): string {
         if (!rank) return '❓';
@@ -646,17 +640,17 @@ client.on('interactionCreate', async interaction => {
         await interaction.deferReply();
 
         try {
-            let playerData: RematchPlayer | null;
+            let result: RematchPlayerWithHistory | null;
 
             if (platform) {
                 console.log(`🔍 Looking up player: ${username} on ${platform}`);
-                playerData = await rematchAPI.searchUserByPlatform(username, platform);
+                result = await rematchAPI.searchUserByPlatform(username, platform);
             } else {
                 console.log(`🔍 Looking up player: ${username}`);
-                playerData = await rematchAPI.searchUserMultiPlatform(username);
+                result = await rematchAPI.searchUserMultiPlatform(username);
             }
 
-            if (!playerData) {
+            if (!result) {
                 const errorMessage = platform
                     ? `❌ Could not find player **${username}** on **${platform.charAt(0).toUpperCase() + platform.slice(1)}**. Make sure the username is correct for that platform.`
                     : `❌ Could not find player **${username}**. Make sure the username is correct.`;
@@ -664,10 +658,7 @@ client.on('interactionCreate', async interaction => {
                 return;
             }
 
-            console.log(`🔍 Getting match history for resolved player: ${playerData.displayName}`);
-
-            // Get the player's match history using their resolved platform ID
-            const matchHistory = await rematchAPI.getPlayerMatchHistoryByPlatformId(playerData.platform, playerData.id);
+            const { player: playerData, matchHistory } = result;
 
             if (!matchHistory || matchHistory.length === 0) {
                 await interaction.editReply(`❌ Could not find any recent matches for **${playerData.displayName || username}**. Make sure they've played recently.`);
@@ -742,23 +733,25 @@ client.on('interactionCreate', async interaction => {
         await interaction.deferReply();
 
         try {
-            let playerData: RematchPlayer | null;
+            let result: RematchPlayerWithHistory | null;
 
             if (platform) {
                 console.log(`🔍 Looking up player: ${username} on ${platform}`);
-                playerData = await rematchAPI.searchUserByPlatform(username, platform);
+                result = await rematchAPI.searchUserByPlatform(username, platform);
             } else {
                 console.log(`🔍 Looking up player: ${username}`);
-                playerData = await rematchAPI.searchUserMultiPlatform(username);
+                result = await rematchAPI.searchUserMultiPlatform(username);
             }
 
-            if (!playerData) {
+            if (!result) {
                 const errorMessage = platform
                     ? `❌ Could not find player **${username}** on **${platform.charAt(0).toUpperCase() + platform.slice(1)}**. Make sure the username is correct for that platform.`
                     : `❌ Could not find player **${username}**. Make sure the username is correct.`;
                 await interaction.editReply(errorMessage);
                 return;
             }
+
+            const { player: playerData } = result;
 
             const embed = new EmbedBuilder()
                 .setTitle(`👤 ${playerData.displayName || playerData.username}`)
