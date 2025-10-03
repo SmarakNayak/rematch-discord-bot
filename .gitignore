@@ -39,3 +39,4 @@ test-*.ts
 
 # Cache
 .cache/
+.secret-cache.json

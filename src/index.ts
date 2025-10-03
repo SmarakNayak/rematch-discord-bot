@@ -1,5 +1,6 @@
 import { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, EmbedBuilder } from 'discord.js';
 import axios from 'axios';
+import RematchClient from './rematch-client';
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
@@ -87,6 +88,7 @@ interface RematchMatch {
 
 export class RematchAPI {
     private baseURL = 'https://api.rematchtracker.com';
+    private apiClient = new RematchClient();
 
     private mapPlatformForAPI(platform: string): string {
         switch (platform) {
@@ -100,15 +102,11 @@ export class RematchAPI {
     }
 
     private async getProfile(platform: string, platformId: string): Promise<any> {
-        const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
+        const data = await this.apiClient.post('/scrap/profile', {
             platform: this.mapPlatformForAPI(platform),
             platformId: platformId
-        }, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
         });
-        return profileResponse;
+        return { data };
     }
 
     async searchSteamUsersByAlias(alias: string, page: number = 1): Promise<string[]> {
@@ -223,17 +221,13 @@ export class RematchAPI {
             console.log(`🔍 Searching for "${username}" on ${platform} using scrap API...`);
 
             // Try to resolve username first
-            const resolveResponse = await axios.post(`${this.baseURL}/scrap/resolve`, {
+            const resolveData = await this.apiClient.post('/scrap/resolve', {
                 platform: platform,
                 identifier: username
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
             });
 
-            if (resolveResponse.data.success) {
-                const { platform_id, display_name } = resolveResponse.data;
+            if (resolveData.success) {
+                const { platform_id, display_name } = resolveData;
                 console.log(`✅ Resolved "${username}" to "${display_name}" (${platform_id}) on ${platform}`);
 
                 try {
@@ -433,32 +427,22 @@ export class RematchAPI {
         try {
             console.log(`🔍 Searching for "${username}" using new scrap API...`);
 
-            // Try to resolve username first (works for Steam usernames like "miltu")
-            const resolveResponse = await axios.post(`${this.baseURL}/scrap/resolve`, {
+            const resolveData = await this.apiClient.post('/scrap/resolve', {
                 platform: 'steam',
                 identifier: username
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
             });
 
-            if (resolveResponse.data.success) {
-                const { platform_id, display_name } = resolveResponse.data;
+            if (resolveData.success) {
+                const { platform_id, display_name } = resolveData;
                 console.log(`✅ Resolved "${username}" to "${display_name}" (${platform_id})`);
 
-                // Get full profile data
-                const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
+                const profileData = await this.apiClient.post('/scrap/profile', {
                     platform: 'steam',
                     platformId: platform_id
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
                 });
 
-                if (profileResponse.data.success) {
-                    return this.convertToRematchPlayer(profileResponse.data);
+                if (profileData.success) {
+                    return this.convertToRematchPlayer(profileData);
                 }
             }
 
@@ -541,31 +525,21 @@ export class RematchAPI {
         try {
             console.log(`🔍 Getting match history for "${username}"...`);
 
-            // First resolve the username to get their platform ID
-            const resolveResponse = await axios.post(`${this.baseURL}/scrap/resolve`, {
+            const resolveData = await this.apiClient.post('/scrap/resolve', {
                 platform: 'steam',
                 identifier: username
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
             });
 
-            if (resolveResponse.data.success) {
-                const { platform_id } = resolveResponse.data;
+            if (resolveData.success) {
+                const { platform_id } = resolveData;
 
-                // Get full profile data which includes match history
-                const profileResponse = await axios.post(`${this.baseURL}/scrap/profile`, {
+                const profileData = await this.apiClient.post('/scrap/profile', {
                     platform: 'steam',
                     platformId: platform_id
-                }, {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
                 });
 
-                if (profileResponse.data.success && profileResponse.data.match_history) {
-                    return profileResponse.data.match_history.items || [];
+                if (profileData.success && profileData.match_history) {
+                    return profileData.match_history.items || [];
                 }
             }
 
